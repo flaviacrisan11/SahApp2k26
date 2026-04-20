@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="frontend/frontend.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="SahApp2k26.AppHost/SahApp2k26.AppHost.csproj" />
+  <Project Path="SahApp2k26.Server/SahApp2k26.Server.csproj" />
+</Solution>
