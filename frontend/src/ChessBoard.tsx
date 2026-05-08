@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './ChessBoard.css';
 import ChessTimer from './ChessTimer';
 import ChatPanel from './ChatPanel';
+import { createGame, saveMove, finishGame, toChessNotation } from './chessApi';
 
 // =====================
 // TIPURI DE DATE
@@ -257,12 +258,19 @@ const ChessBoard: React.FC = () => {
     const [isWhiteTurn, setIsWhiteTurn] = useState<boolean>(true);
     const [gameStatus, setGameStatus] = useState<string>('');
     const [promotionPending, setPromotionPending] = useState<Position>(null);
+    const [gameId, setGameId] = useState<number | null>(null); // ← AICI, înăuntru
 
     const INITIAL_TIME = 10 * 60;
     const [whiteTime, setWhiteTime] = useState<number>(INITIAL_TIME);
     const [blackTime, setBlackTime] = useState<number>(INITIAL_TIME);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // Creăm o partidă nouă la start
+    useEffect(() => {
+        createGame().then(id => setGameId(id));
+    }, []);
+
+    // Cronometru
     useEffect(() => {
         if (gameStatus === 'checkmate' || gameStatus === 'stalemate') {
             if (timerRef.current) clearInterval(timerRef.current);
@@ -324,6 +332,15 @@ const ChessBoard: React.FC = () => {
             return;
         }
 
+        // Salvăm mutarea în backend
+        if (gameId && selected) {
+            const movingPiece = board[selected.row][selected.col] ?? '?';
+            const from = toChessNotation(selected.row, selected.col);
+            const to = toChessNotation(row, col);
+            const player = isWhiteTurn ? 'white' : 'black';
+            saveMove(gameId, movingPiece, from, to, player);
+        }
+
         const newBoard = board.map(r => [...r]);
         newBoard[row][col] = board[selected.row][selected.col];
         newBoard[selected.row][selected.col] = null;
@@ -358,8 +375,10 @@ const ChessBoard: React.FC = () => {
 
         if (inCheck && !hasMoves) {
             setGameStatus('checkmate');
+            if (gameId) finishGame(gameId, nextIsWhite ? 'black' : 'white');
         } else if (!inCheck && !hasMoves) {
             setGameStatus('stalemate');
+            if (gameId) finishGame(gameId, 'draw');
         } else if (inCheck) {
             setGameStatus('check');
         } else {
@@ -376,6 +395,7 @@ const ChessBoard: React.FC = () => {
         setPromotionPending(null);
         setWhiteTime(INITIAL_TIME);
         setBlackTime(INITIAL_TIME);
+        createGame().then(id => setGameId(id));
     };
 
     const handleAIMove = (fromRow: number, fromCol: number, toRow: number, toCol: number): boolean => {
@@ -387,6 +407,13 @@ const ChessBoard: React.FC = () => {
         const moves = getValidMoves(board, fromRow, fromCol);
         const isValid = moves.some(m => m?.row === toRow && m?.col === toCol);
         if (!isValid) return false;
+
+        if (gameId) {
+            const from = toChessNotation(fromRow, fromCol);
+            const to = toChessNotation(toRow, toCol);
+            const player = isWhiteTurn ? 'white' : 'black';
+            saveMove(gameId, piece, from, to, player);
+        }
 
         const newBoard = board.map(r => [...r]);
         newBoard[toRow][toCol] = board[fromRow][fromCol];
@@ -440,27 +467,48 @@ const ChessBoard: React.FC = () => {
                     />
                 </div>
 
-                <div className="board">
-                    {board.map((rowArr, rowIndex) =>
-                        rowArr.map((piece, colIndex) => {
-                            const isLight = (rowIndex + colIndex) % 2 === 0;
-                            const isSelected = selected?.row === rowIndex && selected?.col === colIndex;
-                            const isHighlighted = validMoves.some(m => m?.row === rowIndex && m?.col === colIndex);
-                            const isInCheckSquare = kingInCheckPos?.row === rowIndex && kingInCheckPos?.col === colIndex;
+                {/* Tablă cu etichete */}
+                <div className="board-wrapper">
+                    <div className="board-with-labels">
 
-                            return (
-                                <Square
-                                    key={`${rowIndex}-${colIndex}`}
-                                    piece={piece}
-                                    isLight={isLight}
-                                    isSelected={isSelected}
-                                    isHighlighted={isHighlighted}
-                                    isInCheckSquare={isInCheckSquare}
-                                    onClick={() => handleSquareClick(rowIndex, colIndex)}
-                                />
-                            );
-                        })
-                    )}
+                        {/* Etichete rânduri 8-1 */}
+                        <div className="row-labels">
+                            {['8', '7', '6', '5', '4', '3', '2', '1'].map(r => (
+                                <div key={r} className="row-label">{r}</div>
+                            ))}
+                        </div>
+
+                        {/* Tabla */}
+                        <div className="board">
+                            {board.map((rowArr, rowIndex) =>
+                                rowArr.map((piece, colIndex) => {
+                                    const isLight = (rowIndex + colIndex) % 2 === 0;
+                                    const isSelected = selected?.row === rowIndex && selected?.col === colIndex;
+                                    const isHighlighted = validMoves.some(m => m?.row === rowIndex && m?.col === colIndex);
+                                    const isInCheckSquare = kingInCheckPos?.row === rowIndex && kingInCheckPos?.col === colIndex;
+
+                                    return (
+                                        <Square
+                                            key={`${rowIndex}-${colIndex}`}
+                                            piece={piece}
+                                            isLight={isLight}
+                                            isSelected={isSelected}
+                                            isHighlighted={isHighlighted}
+                                            isInCheckSquare={isInCheckSquare}
+                                            onClick={() => handleSquareClick(rowIndex, colIndex)}
+                                        />
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Etichete coloane a-h */}
+                    <div className="col-labels">
+                        {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(c => (
+                            <div key={c} className="col-label">{c}</div>
+                        ))}
+                    </div>
                 </div>
 
                 {promotionPending && (
@@ -495,7 +543,7 @@ const ChessBoard: React.FC = () => {
             />
 
         </div>
-    ); 
-}; 
+    );
+};
 
-export default ChessBoard; 
+export default ChessBoard;

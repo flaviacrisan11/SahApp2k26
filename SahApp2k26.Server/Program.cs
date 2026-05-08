@@ -5,45 +5,110 @@ builder.AddServiceDefaults();
 
 // Add services to the container.
 builder.Services.AddProblemDetails();
-
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// CORS — permite frontend-ului să comunice cu backend-ul
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 app.UseExceptionHandler();
+app.UseCors("AllowFrontend");
 
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-
-string[] summaries = ["Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"];
+// =====================
+// DATE — stocăm în memorie (simplu, fără bază de date)
+// =====================
+var games = new List<GameRecord>();
+var moves = new List<MoveRecord>();
+int gameIdCounter = 1;
+int moveIdCounter = 1;
 
 var api = app.MapGroup("/api");
-api.MapGet("weatherforecast", () =>
+
+// =====================
+// GAMES — creare și listare partide
+// =====================
+
+// GET /api/games — toate partidele
+api.MapGet("games", () => Results.Ok(games));
+
+// POST /api/games — creează o partidă nouă
+api.MapPost("games", () =>
 {
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    var game = new GameRecord(
+        Id: gameIdCounter++,
+        StartedAt: DateTime.Now,
+        Status: "in_progress"
+    );
+    games.Add(game);
+    return Results.Ok(game);
+});
+
+// PUT /api/games/{id}/finish — termină o partidă
+api.MapPut("games/{id}/finish", (int id, FinishGameRequest req) =>
+{
+    var game = games.FirstOrDefault(g => g.Id == id);
+    if (game == null) return Results.NotFound();
+
+    games.Remove(game);
+    var updated = game with { Status = req.Winner };
+    games.Add(updated);
+    return Results.Ok(updated);
+});
+
+// =====================
+// MOVES — salvare și listare mutări
+// =====================
+
+// GET /api/games/{id}/moves — mutările unei partide
+api.MapGet("games/{id}/moves", (int id) =>
+{
+    var gameMoves = moves.Where(m => m.GameId == id).OrderBy(m => m.MoveNumber).ToList();
+    return Results.Ok(gameMoves);
+});
+
+// POST /api/games/{id}/moves — salvează o mutare
+api.MapPost("games/{id}/moves", (int id, MoveRequest req) =>
+{
+    var game = games.FirstOrDefault(g => g.Id == id);
+    if (game == null) return Results.NotFound();
+
+    var moveNumber = moves.Count(m => m.GameId == id) + 1;
+    var move = new MoveRecord(
+        Id: moveIdCounter++,
+        GameId: id,
+        MoveNumber: moveNumber,
+        Piece: req.Piece,
+        From: req.From,
+        To: req.To,
+        Player: req.Player,
+        Timestamp: DateTime.Now
+    );
+    moves.Add(move);
+    return Results.Ok(move);
+});
 
 app.MapDefaultEndpoints();
-
 app.UseFileServer();
-
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+// =====================
+// MODELE
+// =====================
+record GameRecord(int Id, DateTime StartedAt, string Status);
+record MoveRecord(int Id, int GameId, int MoveNumber, string Piece, string From, string To, string Player, DateTime Timestamp);
+record MoveRequest(string Piece, string From, string To, string Player);
+record FinishGameRequest(string Winner);
