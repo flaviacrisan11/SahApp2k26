@@ -51,6 +51,7 @@ dotnet run
 
 ## Structura proiectului
 
+```
 SahApp2k26/
 ├── frontend/                    # React + TypeScript
 │   └── src/
@@ -64,6 +65,7 @@ SahApp2k26/
 ├── SahApp2k26.Server/           # ASP.NET Core backend
 │   └── Program.cs               # API endpoints
 └── SahApp2k26.AppHost/          # .NET Aspire orchestrator
+```
 
 ## API Endpoints
 
