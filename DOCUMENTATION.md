@@ -54,9 +54,11 @@ Tabla are coordonate standard:
 
 ### 2.1 Arhitectura aplicației
 
+```
 Browser (React)  ←→  ASP.NET Core API  ←→  In-Memory Storage
 ↕
 OpenRouter API (AI)
+```
 
 ### 2.2 Frontend — React + TypeScript
 
@@ -98,24 +100,29 @@ const [gameId, setGameId] = useState<number | null>(null);
 
 #### Algoritmul de validare mutări
 
+```
 getRawMoves() → toate mutările posibile geometric
 ↓
 moveDoesNotLeaveKingInCheck() → filtrăm mutările care lasă regele în șah
 ↓
 getValidMoves() → mutările finale valide
+```
 
 #### Detectarea șahului
 
+```
 isInCheck(board, isWhite):
   1.Găsim poziția regelui
   2.Parcurgem toate piesele adversare
   3.Verificăm dacă vreo piesă poate ataca regele
   4.Return true/false
+```
 
 ### 2.3 Backend — ASP.NET Core
 
 #### Endpoints
 
+```
 POST /api/games
 → Creează o partidă nouă
 → Return: { id, startedAt, status }
@@ -130,6 +137,7 @@ POST /api/games/{id}/moves
 → Salvează o mutare în istoric
 GET /api/games/{id}/moves
 → Returnează istoricul mutărilor unei partide
+```
 
 #### Modele de date
 
